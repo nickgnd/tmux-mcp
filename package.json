@@ -9,6 +9,12 @@
     "start": "node build/index.js",
     "dev": "tsc -w"
   },
+  "bin": {
+    "tmux-mcp": "build/index.js"
+  },
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "mcp",
     "tmux",
