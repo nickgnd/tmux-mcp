@@ -13,7 +13,7 @@
     "tmux-mcp": "build/index.js"
   },
   "files": [
-    "dist"
+    "build"
   ],
   "keywords": [
     "mcp",
