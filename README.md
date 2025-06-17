@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/nickgnd-tmux-mcp-badge.png)](https://mseep.ai/app/nickgnd-tmux-mcp)
+
 # Tmux MCP Server
 
 Model Context Protocol server that enables Claude Desktop to interact with and view tmux session content. This integration allows AI assistants to read from, control, and observe your terminal sessions.
