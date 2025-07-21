@@ -340,37 +340,37 @@ server.resource(
   "Tmux Pane Content",
   new ResourceTemplate("tmux://pane/{paneId}", {
     list: async () => {
-    try {
-    // Get all sessions
-    const sessions = await tmux.listSessions();
-    const paneResources = [];
+      try {
+        // Get all sessions
+        const sessions = await tmux.listSessions();
+        const paneResources = [];
 
-    // For each session, get all windows
-    for (const session of sessions) {
-    const windows = await tmux.listWindows(session.id);
+        // For each session, get all windows
+        for (const session of sessions) {
+          const windows = await tmux.listWindows(session.id);
 
-    // For each window, get all panes
-    for (const window of windows) {
-    const panes = await tmux.listPanes(window.id);
+          // For each window, get all panes
+          for (const window of windows) {
+            const panes = await tmux.listPanes(window.id);
 
-    // For each pane, create a resource with descriptive name
-    for (const pane of panes) {
-    paneResources.push({
-      name: `Pane: ${session.name} - ${pane.id} - ${pane.title} ${pane.active ? "(active)" : ""}`,
-        uri: `tmux://pane/${pane.id}`,
-          description: `Content from pane ${pane.id} - ${pane.title} in session ${session.name}`
-          });
-         }
-     }
-     }
+            // For each pane, create a resource with descriptive name
+            for (const pane of panes) {
+              paneResources.push({
+                name: `Pane: ${session.name} - ${pane.id} - ${pane.title} ${pane.active ? "(active)" : ""}`,
+                uri: `tmux://pane/${pane.id}`,
+                description: `Content from pane ${pane.id} - ${pane.title} in session ${session.name}`
+              });
+            }
+          }
+        }
 
-    return {
-        resources: paneResources
+        return {
+          resources: paneResources
         };
       } catch (error) {
         server.server.sendLoggingMessage({
-            level: 'error',
-            data: `Error listing panes: ${error}`
+          level: 'error',
+          data: `Error listing panes: ${error}`
         });
 
         return { resources: [] };
@@ -476,17 +476,6 @@ async function main() {
     tmux.setShellConfig({
       type: values['shell-type'] as string
     });
-
-    // Check if tmux is running
-    const tmuxRunning = await tmux.isTmuxRunning();
-    if (!tmuxRunning) {
-      server.server.sendLoggingMessage({
-          level: 'error',
-          data: 'Tmux seems not running'
-      });
-
-      throw "Tmux server is not running";
-    }
 
     // Start the MCP server
     const transport = new StdioServerTransport();
