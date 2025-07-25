@@ -2,6 +2,10 @@
 
 Model Context Protocol server that enables Claude Desktop to interact with and view tmux session content. This integration allows AI assistants to read from, control, and observe your terminal sessions.
 
+<a href="https://glama.ai/mcp/servers/@nickgnd/tmux-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@nickgnd/tmux-mcp/badge" alt="Tmux Server MCP server" />
+</a>
+
 ## Features
 
 - List and search tmux sessions
@@ -68,4 +72,3 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `create-window` - Create a new window in a tmux session
 - `execute-command` - Execute a command in a tmux pane
 - `get-command-result` - Get the result of an executed command
-
