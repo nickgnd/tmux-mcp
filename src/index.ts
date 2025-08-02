@@ -231,11 +231,12 @@ server.tool(
   "Execute a command in a tmux pane and get results. IMPORTANT: Avoid heredoc syntax (cat << EOF) and other multi-line constructs as they conflict with command wrapping. For file writing, prefer: printf 'content\\n' > file, echo statements, or write to temp files instead.",
   {
     paneId: z.string().describe("ID of the tmux pane"),
-    command: z.string().describe("Command to execute")
+    command: z.string().describe("Command to execute"),
+    rawMode: z.boolean().optional().describe("Execute command without wrapper markers for REPL/interactive compatibility. Disables get-command-result status tracking. Use capture-pane to monitor interactive apps.")
   },
-  async ({ paneId, command }) => {
+  async ({ paneId, command, rawMode }) => {
     try {
-      const commandId = await tmux.executeCommand(paneId, command);
+      const commandId = await tmux.executeCommand(paneId, command, rawMode);
 
       // Create the resource URI for this command's results
       const resourceUri = `tmux://command/${commandId}/result`;
@@ -283,7 +284,11 @@ server.tool(
       // Format the response based on command status
       let resultText;
       if (command.status === 'pending') {
-        resultText = `Command still executing...\nStarted: ${command.startTime.toISOString()}\nCommand: ${command.command}`;
+        if (command.result) {
+          resultText = `Status: ${command.status}\nCommand: ${command.command}\n\n--- Message ---\n${command.result}`;
+        } else {
+          resultText = `Command still executing...\nStarted: ${command.startTime.toISOString()}\nCommand: ${command.command}`;
+        }
       } else {
         resultText = `Status: ${command.status}\nExit code: ${command.exitCode}\nCommand: ${command.command}\n\n--- Output ---\n${command.result}`;
       }
@@ -442,7 +447,11 @@ server.resource(
       // Format the response based on command status
       let resultText;
       if (command.status === 'pending') {
-        resultText = `Command still executing...\nStarted: ${command.startTime.toISOString()}\nCommand: ${command.command}`;
+        if (command.result) {
+          resultText = `Status: ${command.status}\nCommand: ${command.command}\n\n--- Message ---\n${command.result}`;
+        } else {
+          resultText = `Command still executing...\nStarted: ${command.startTime.toISOString()}\nCommand: ${command.command}`;
+        }
       } else {
         resultText = `Status: ${command.status}\nExit code: ${command.exitCode}\nCommand: ${command.command}\n\n--- Output ---\n${command.result}`;
       }

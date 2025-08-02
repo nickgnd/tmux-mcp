@@ -34,6 +34,7 @@ interface CommandExecution {
   startTime: Date;
   result?: string;
   exitCode?: number;
+  rawMode?: boolean;
 }
 
 export type ShellType = 'bash' | 'zsh' | 'fish';
@@ -178,13 +179,17 @@ const startMarkerText = 'TMUX_MCP_START';
 const endMarkerPrefix = "TMUX_MCP_DONE_";
 
 // Execute a command in a tmux pane and track its execution
-export async function executeCommand(paneId: string, command: string): Promise<string> {
+export async function executeCommand(paneId: string, command: string, rawMode?: boolean): Promise<string> {
   // Generate unique ID for this command execution
   const commandId = uuidv4();
 
-  const endMarkerText = getEndMarkerText();
-
-  const fullCommand = `echo "${startMarkerText}"; ${command}; echo "${endMarkerText}"`;
+  let fullCommand: string;
+  if (rawMode) {
+    fullCommand = command;
+  } else {
+    const endMarkerText = getEndMarkerText();
+    fullCommand = `echo "${startMarkerText}"; ${command}; echo "${endMarkerText}"`;
+  }
 
   // Store command in tracking map
   activeCommands.set(commandId, {
@@ -192,7 +197,8 @@ export async function executeCommand(paneId: string, command: string): Promise<s
     paneId,
     command,
     status: 'pending',
-    startTime: new Date()
+    startTime: new Date(),
+    rawMode
   });
 
   // Send the command to the tmux pane
@@ -208,6 +214,11 @@ export async function checkCommandStatus(commandId: string): Promise<CommandExec
   if (command.status !== 'pending') return command;
 
   const content = await capturePaneContent(command.paneId, 1000);
+
+  if (command.rawMode) {
+    command.result = 'Status tracking unavailable for rawMode commands. Use capture-pane to monitor interactive apps instead.';
+    return command;
+  }
 
   // Find the last occurrence of the markers
   const startIndex = content.lastIndexOf(startMarkerText);
