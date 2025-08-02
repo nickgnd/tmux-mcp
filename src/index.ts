@@ -238,6 +238,15 @@ server.tool(
     try {
       const commandId = await tmux.executeCommand(paneId, command, rawMode);
 
+      if (rawMode) {
+        return {
+          content: [{
+            type: "text",
+            text: `Interactive command started (rawMode).\n\nStatus tracking is disabled for interactive commands.\nUse the 'capture-pane' tool to monitor the output.\n\nCommand ID: ${commandId}`
+          }]
+        };
+      }
+
       // Create the resource URI for this command's results
       const resourceUri = `tmux://command/${commandId}/result`;
 
