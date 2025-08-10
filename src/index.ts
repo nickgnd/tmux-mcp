@@ -136,16 +136,18 @@ server.tool(
 // Capture pane content - Tool
 server.tool(
   "capture-pane",
-  "Capture content from a tmux pane",
+  "Capture content from a tmux pane with configurable lines count and optional color preservation",
   {
     paneId: z.string().describe("ID of the tmux pane"),
-    lines: z.string().optional().describe("Number of lines to capture")
+    lines: z.string().optional().describe("Number of lines to capture"),
+    colors: z.boolean().optional().describe("Include color/escape sequences for text and background attributes in output")
   },
-  async ({ paneId, lines }) => {
+  async ({ paneId, lines, colors }) => {
     try {
       // Parse lines parameter if provided
       const linesCount = lines ? parseInt(lines, 10) : undefined;
-      const content = await tmux.capturePaneContent(paneId, linesCount);
+      const includeColors = colors || false;
+      const content = await tmux.capturePaneContent(paneId, linesCount, includeColors);
       return {
         content: [{
           type: "text",
@@ -395,7 +397,8 @@ server.resource(
     try {
       // Ensure paneId is a string
       const paneIdStr = Array.isArray(paneId) ? paneId[0] : paneId;
-      const content = await tmux.capturePaneContent(paneIdStr);
+      // Default to no colors for resources to maintain clean programmatic access
+      const content = await tmux.capturePaneContent(paneIdStr, 200, false);
       return {
         contents: [{
           uri: uri.href,
@@ -457,7 +460,7 @@ server.resource(
       let resultText;
       if (command.status === 'pending') {
         // For rawMode commands, we set a result message while status remains 'pending'
-        // since we can't track their actual completion  
+        // since we can't track their actual completion
         if (command.result) {
           resultText = `Status: ${command.status}\nCommand: ${command.command}\n\n--- Message ---\n${command.result}`;
         } else {
