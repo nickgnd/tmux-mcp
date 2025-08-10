@@ -151,8 +151,9 @@ export async function listPanes(windowId: string): Promise<TmuxPane[]> {
 /**
  * Capture content from a specific pane, by default the latest 200 lines.
  */
-export async function capturePaneContent(paneId: string, lines: number = 200): Promise<string> {
-  return executeTmux(`capture-pane -p -t '${paneId}' -S -${lines} -E -`);
+export async function capturePaneContent(paneId: string, lines: number = 200, includeColors: boolean = false): Promise<string> {
+  const colorFlag = includeColors ? '-e' : '';
+  return executeTmux(`capture-pane -p ${colorFlag} -t '${paneId}' -S -${lines} -E -`);
 }
 
 /**
