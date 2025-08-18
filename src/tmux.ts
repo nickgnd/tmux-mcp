@@ -173,6 +173,27 @@ export async function createWindow(sessionId: string, name: string): Promise<Tmu
   return windows.find(window => window.name === name) || null;
 }
 
+/**
+ * Kill a tmux session by ID
+ */
+export async function killSession(sessionId: string): Promise<void> {
+  await executeTmux(`kill-session -t '${sessionId}'`);
+}
+
+/**
+ * Kill a tmux window by ID
+ */
+export async function killWindow(windowId: string): Promise<void> {
+  await executeTmux(`kill-window -t '${windowId}'`);
+}
+
+/**
+ * Kill a tmux pane by ID
+ */
+export async function killPane(paneId: string): Promise<void> {
+  await executeTmux(`kill-pane -t '${paneId}'`);
+}
+
 // Map to track ongoing command executions
 const activeCommands = new Map<string, CommandExecution>();
 
