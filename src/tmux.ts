@@ -194,6 +194,45 @@ export async function killPane(paneId: string): Promise<void> {
   await executeTmux(`kill-pane -t '${paneId}'`);
 }
 
+/**
+ * Split a tmux pane horizontally or vertically
+ */
+export async function splitPane(
+  targetPaneId: string,
+  direction: 'horizontal' | 'vertical' = 'vertical',
+  size?: number
+): Promise<TmuxPane | null> {
+  // Build the split-window command
+  let splitCommand = 'split-window';
+
+  // Add direction flag (-h for horizontal, -v for vertical)
+  if (direction === 'horizontal') {
+    splitCommand += ' -h';
+  } else {
+    splitCommand += ' -v';
+  }
+
+  // Add target pane
+  splitCommand += ` -t '${targetPaneId}'`;
+
+  // Add size if specified (as percentage)
+  if (size !== undefined && size > 0 && size < 100) {
+    splitCommand += ` -p ${size}`;
+  }
+
+  // Execute the split command
+  await executeTmux(splitCommand);
+
+  // Get the window ID from the target pane to list all panes
+  const windowInfo = await executeTmux(`display-message -p -t '${targetPaneId}' '#{window_id}'`);
+
+  // List all panes in the window to find the newly created one
+  const panes = await listPanes(windowInfo);
+
+  // The newest pane is typically the last one in the list
+  return panes.length > 0 ? panes[panes.length - 1] : null;
+}
+
 // Map to track ongoing command executions
 const activeCommands = new Map<string, CommandExecution>();
 
