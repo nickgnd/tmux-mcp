@@ -227,6 +227,90 @@ server.tool(
   }
 );
 
+// Kill session - Tool
+server.tool(
+  "kill-session",
+  "Kill a tmux session by ID",
+  {
+    sessionId: z.string().describe("ID of the tmux session to kill")
+  },
+  async ({ sessionId }) => {
+    try {
+      await tmux.killSession(sessionId);
+      return {
+        content: [{
+          type: "text",
+          text: `Session ${sessionId} has been killed`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error killing session: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Kill window - Tool
+server.tool(
+  "kill-window",
+  "Kill a tmux window by ID",
+  {
+    windowId: z.string().describe("ID of the tmux window to kill")
+  },
+  async ({ windowId }) => {
+    try {
+      await tmux.killWindow(windowId);
+      return {
+        content: [{
+          type: "text",
+          text: `Window ${windowId} has been killed`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error killing window: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Kill pane - Tool
+server.tool(
+  "kill-pane",
+  "Kill a tmux pane by ID",
+  {
+    paneId: z.string().describe("ID of the tmux pane to kill")
+  },
+  async ({ paneId }) => {
+    try {
+      await tmux.killPane(paneId);
+      return {
+        content: [{
+          type: "text",
+          text: `Pane ${paneId} has been killed`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error killing pane: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Execute command in pane - Tool
 server.tool(
   "execute-command",

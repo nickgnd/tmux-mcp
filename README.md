@@ -9,6 +9,7 @@ Model Context Protocol server that enables Claude Desktop to interact with and v
 - Capture and expose terminal content from any pane
 - Execute commands in tmux panes and retrieve results (use it at your own risk ⚠️)
 - Create new tmux sessions and windows
+- Kill tmux sessions, windows, and panes
 
 Check out this short video to get excited!
 
@@ -66,6 +67,9 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `capture-pane` - Capture content from a tmux pane
 - `create-session` - Create a new tmux session
 - `create-window` - Create a new window in a tmux session
+- `kill-session` - Kill a tmux session by ID
+- `kill-window` - Kill a tmux window by ID
+- `kill-pane` - Kill a tmux pane by ID
 - `execute-command` - Execute a command in a tmux pane
 - `get-command-result` - Get the result of an executed command
 
