@@ -8,8 +8,8 @@ import * as tmux from "./tmux.js";
 
 // Create MCP server
 const server = new McpServer({
-  name: "tmux-context",
-  version: "0.1.0"
+  name: "tmux-mcp",
+  version: "0.2.0"
 }, {
   capabilities: {
     resources: {
