@@ -350,17 +350,21 @@ server.tool(
   {
     paneId: z.string().describe("ID of the tmux pane"),
     command: z.string().describe("Command to execute"),
-    rawMode: z.boolean().optional().describe("Execute command without wrapper markers for REPL/interactive compatibility. Disables get-command-result status tracking. Use capture-pane to monitor interactive apps.")
+    rawMode: z.boolean().optional().describe("Execute command without wrapper markers for REPL/interactive compatibility. Disables get-command-result status tracking. Use capture-pane after execution to verify command outcome."),
+    noEnter: z.boolean().optional().describe("Send keystrokes without pressing Enter. For TUI navigation in apps like btop, vim, less. Supports special keys (Up, Down, Escape, Tab, etc.) and strings (sent char-by-char for proper filtering). Automatically applies rawMode. Use capture-pane after to see results.")
   },
-  async ({ paneId, command, rawMode }) => {
+  async ({ paneId, command, rawMode, noEnter }) => {
     try {
-      const commandId = await tmux.executeCommand(paneId, command, rawMode);
+      // If noEnter is true, automatically apply rawMode
+      const effectiveRawMode = noEnter || rawMode;
+      const commandId = await tmux.executeCommand(paneId, command, effectiveRawMode, noEnter);
 
-      if (rawMode) {
+      if (effectiveRawMode) {
+        const modeText = noEnter ? "Keys sent without Enter" : "Interactive command started (rawMode)";
         return {
           content: [{
             type: "text",
-            text: `Interactive command started (rawMode).\n\nStatus tracking is disabled for interactive commands.\nUse the 'capture-pane' tool to monitor the output.\n\nCommand ID: ${commandId}`
+            text: `${modeText}.\n\nStatus tracking is disabled.\nUse 'capture-pane' with paneId '${paneId}' to verify the command outcome.\n\nCommand ID: ${commandId}`
           }]
         };
       }
