@@ -9,7 +9,7 @@ import * as tmux from "./tmux.js";
 // Create MCP server
 const server = new McpServer({
   name: "tmux-mcp",
-  version: "0.2.1"
+  version: "0.2.2"
 }, {
   capabilities: {
     resources: {
