@@ -240,12 +240,12 @@ const startMarkerText = 'TMUX_MCP_START';
 const endMarkerPrefix = "TMUX_MCP_DONE_";
 
 // Execute a command in a tmux pane and track its execution
-export async function executeCommand(paneId: string, command: string, rawMode?: boolean): Promise<string> {
+export async function executeCommand(paneId: string, command: string, rawMode?: boolean, noEnter?: boolean): Promise<string> {
   // Generate unique ID for this command execution
   const commandId = uuidv4();
 
   let fullCommand: string;
-  if (rawMode) {
+  if (rawMode || noEnter) {
     fullCommand = command;
   } else {
     const endMarkerText = getEndMarkerText();
@@ -259,11 +259,30 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
     command,
     status: 'pending',
     startTime: new Date(),
-    rawMode
+    rawMode: rawMode || noEnter
   });
 
   // Send the command to the tmux pane
-  await executeTmux(`send-keys -t '${paneId}' '${fullCommand.replace(/'/g, "'\\''")}' Enter`);
+  if (noEnter) {
+    // Check if this is a special key (e.g., Up, Down, Left, Right, Escape, Tab, etc.)
+    // Special keys in tmux are typically capitalized or have special names
+    const specialKeys = ['Up', 'Down', 'Left', 'Right', 'Escape', 'Tab', 'Enter', 'Space',
+      'BSpace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+      'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
+
+    if (specialKeys.includes(fullCommand)) {
+      // Send special key as-is
+      await executeTmux(`send-keys -t '${paneId}' ${fullCommand}`);
+    } else {
+      // For regular text, send each character individually to ensure proper processing
+      // This handles both single characters (like 'q', 'f') and strings (like 'beam')
+      for (const char of fullCommand) {
+        await executeTmux(`send-keys -t '${paneId}' '${char.replace(/'/g, "'\\''")}'`);
+      }
+    }
+  } else {
+    await executeTmux(`send-keys -t '${paneId}' '${fullCommand.replace(/'/g, "'\\''")}' Enter`);
+  }
 
   return commandId;
 }
