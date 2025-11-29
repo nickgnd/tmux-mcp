@@ -40,6 +40,7 @@ interface CommandExecution {
 export type ShellType = 'bash' | 'zsh' | 'fish';
 
 let shellConfig: { type: ShellType } = { type: 'bash' };
+let sshPrefix : string = "";
 
 export function setShellConfig(config: { type: string }): void {
   // Validate shell type
@@ -52,12 +53,22 @@ export function setShellConfig(config: { type: string }): void {
   }
 }
 
+export function setSSHPrefix(connectionString: string): void {
+  sshPrefix = `ssh ${connectionString} `
+}
+
 /**
  * Execute a tmux command and return the result
  */
 export async function executeTmux(tmuxCommand: string): Promise<string> {
   try {
-    const { stdout } = await exec(`tmux ${tmuxCommand}`);
+    let command = `tmux ${tmuxCommand}`;
+    if(sshPrefix)
+    {
+      command = command.replaceAll("'", "'\\''");
+      command = `${sshPrefix} '${command}'`;
+    }
+    const { stdout } = await exec(command);
     return stdout.trim();
   } catch (error: any) {
     throw new Error(`Failed to execute tmux command: ${error.message}`);

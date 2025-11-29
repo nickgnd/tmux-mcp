@@ -611,7 +611,8 @@ async function main() {
   try {
     const { values } = parseArgs({
       options: {
-        'shell-type': { type: 'string', default: 'bash', short: 's' }
+        'shell-type': { type: 'string', default: 'bash', short: 's' },
+        'ssh': { type: 'string', default: undefined, short: 'r'}
       }
     });
 
@@ -619,6 +620,10 @@ async function main() {
     tmux.setShellConfig({
       type: values['shell-type'] as string
     });
+
+    // enable remote access by prepending the executing tmux commands over SSH
+    if(values.ssh)
+      tmux.setSSHPrefix(values['ssh'])
 
     // Start the MCP server
     const transport = new StdioServerTransport();
