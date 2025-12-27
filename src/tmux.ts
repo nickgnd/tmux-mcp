@@ -194,6 +194,34 @@ export async function killPane(paneId: string): Promise<void> {
   await executeTmux(`kill-pane -t '${paneId}'`);
 }
 
+export interface MoveWindowOptions {
+  source?: string;
+  destination?: string;
+  after?: boolean;
+  before?: boolean;
+  renumber?: boolean;
+  detached?: boolean;
+  kill?: boolean;
+}
+
+/**
+ * Move a window to a different index or session
+ */
+export async function moveWindow(options: MoveWindowOptions): Promise<void> {
+  let command = 'move-window';
+
+  if (options.after) command += ' -a';
+  if (options.before) command += ' -b';
+  if (options.renumber) command += ' -r';
+  if (options.detached) command += ' -d';
+  if (options.kill) command += ' -k';
+
+  if (options.source) command += ` -s '${options.source}'`;
+  if (options.destination) command += ` -t '${options.destination}'`;
+
+  await executeTmux(command);
+}
+
 /**
  * Split a tmux pane horizontally or vertically
  */

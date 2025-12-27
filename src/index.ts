@@ -343,6 +343,40 @@ server.tool(
   }
 );
 
+// Move window - Tool
+server.tool(
+  "move-window",
+  "Move a tmux window to a different index or session",
+  {
+    source: z.string().optional().describe("Source window specification (format: session:window or window ID)"),
+    destination: z.string().optional().describe("Destination window specification (format: session:window, session name, or window index)"),
+    after: z.boolean().optional().describe("Move window to the next index after destination"),
+    before: z.boolean().optional().describe("Move window to the next index before destination"),
+    renumber: z.boolean().optional().describe("Renumber all windows in the session in sequential order"),
+    detached: z.boolean().optional().describe("Do not select the moved window"),
+    kill: z.boolean().optional().describe("Kill destination window if it exists")
+  },
+  async (args) => {
+    try {
+      await tmux.moveWindow(args);
+      return {
+        content: [{
+          type: "text",
+          text: `Window moved successfully`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error moving window: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Execute command in pane - Tool
 server.tool(
   "execute-command",
