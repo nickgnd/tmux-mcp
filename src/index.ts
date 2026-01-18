@@ -77,6 +77,41 @@ server.tool(
   }
 );
 
+// Get current session - Tool
+server.tool(
+  "get-current-session",
+  "Get the tmux session that the MCP server is running in (if any). Uses the $TMUX environment variable or tmux display-message to detect the current session.",
+  {},
+  async () => {
+    try {
+      const session = await tmux.getCurrentSession();
+      if (session) {
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(session, null, 2)
+          }]
+        };
+      } else {
+        return {
+          content: [{
+            type: "text",
+            text: "Not running inside a tmux session"
+          }]
+        };
+      }
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error getting current session: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // List windows in a session - Tool
 server.tool(
   "list-windows",
@@ -276,6 +311,64 @@ server.tool(
         content: [{
           type: "text",
           text: `Error killing window: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Rename window - Tool
+server.tool(
+  "rename-window",
+  "Rename a tmux window",
+  {
+    windowId: z.string().describe("ID of the tmux window to rename"),
+    name: z.string().describe("New name for the window")
+  },
+  async ({ windowId, name }) => {
+    try {
+      await tmux.renameWindow(windowId, name);
+      return {
+        content: [{
+          type: "text",
+          text: `Window ${windowId} renamed to "${name}"`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error renaming window: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Rename pane - Tool
+server.tool(
+  "rename-pane",
+  "Rename a tmux pane (set pane title)",
+  {
+    paneId: z.string().describe("ID of the tmux pane to rename"),
+    name: z.string().describe("New title for the pane")
+  },
+  async ({ paneId, name }) => {
+    try {
+      await tmux.renamePane(paneId, name);
+      return {
+        content: [{
+          type: "text",
+          text: `Pane ${paneId} renamed to "${name}"`
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error renaming pane: ${error}`
         }],
         isError: true
       };

@@ -109,6 +109,38 @@ export async function findSessionByName(name: string): Promise<TmuxSession | nul
 }
 
 /**
+ * Get the current tmux session that this process is running in (if any)
+ */
+export async function getCurrentSession(): Promise<TmuxSession | null> {
+  // First, try using the $TMUX environment variable
+  const tmuxEnv = process.env.TMUX;
+  if (tmuxEnv) {
+    // Format: /tmp/tmux-1000/default,12345,6
+    // The last number is the session ID
+    const parts = tmuxEnv.split(',');
+    if (parts.length >= 3) {
+      const sessions = await listSessions();
+      // Session IDs in tmux are prefixed with $, e.g., "$6"
+      const sessionId = `$${parts[parts.length - 1]}`;
+      return sessions.find(s => s.id === sessionId) || null;
+    }
+  }
+
+  // Fallback: try tmux display-message (works if running inside tmux)
+  try {
+    const sessionName = await executeTmux("display-message -p '#S'");
+    if (sessionName) {
+      const sessions = await listSessions();
+      return sessions.find(s => s.name === sessionName) || null;
+    }
+  } catch {
+    // Not in a tmux session
+  }
+
+  return null;
+}
+
+/**
  * List windows in a session
  */
 export async function listWindows(sessionId: string): Promise<TmuxWindow[]> {
@@ -126,6 +158,20 @@ export async function listWindows(sessionId: string): Promise<TmuxWindow[]> {
       sessionId
     };
   });
+}
+
+/**
+ * Rename a window
+ */
+export async function renameWindow(windowId: string, newName: string): Promise<void> {
+  await executeTmux(`rename-window -t '${windowId}' '${newName.replace(/'/g, "'\\''")}'`);
+}
+
+/**
+ * Rename a pane (set pane title)
+ */
+export async function renamePane(paneId: string, newTitle: string): Promise<void> {
+  await executeTmux(`select-pane -t '${paneId}' -T '${newTitle.replace(/'/g, "'\\''")}'`);
 }
 
 /**
