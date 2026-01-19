@@ -63,6 +63,7 @@ The MCP server needs to know the shell only when executing commands, to properly
 
 - `list-sessions` - List all active tmux sessions
 - `find-session` - Find a tmux session by name
+- `get-current-session` - Get the tmux session that the MCP server is running in (if any)
 - `list-windows` - List windows in a tmux session
 - `list-panes` - List panes in a tmux window
 - `capture-pane` - Capture content from a tmux pane
@@ -72,6 +73,8 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `kill-session` - Kill a tmux session by ID
 - `kill-window` - Kill a tmux window by ID
 - `kill-pane` - Kill a tmux pane by ID
+- `rename-window` - Rename a tmux window
+- `rename-pane` - Rename a tmux pane (set pane title)
 - `execute-command` - Execute a command in a tmux pane
 - `get-command-result` - Get the result of an executed command
 
