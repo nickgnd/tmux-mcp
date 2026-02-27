@@ -270,8 +270,11 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
       'BSpace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
       'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
 
-    if (specialKeys.includes(fullCommand)) {
-      // Send special key as-is
+    // Also match tmux modifier key sequences like C-c, C-z, M-a, S-Up, etc.
+    const isModifierKey = /^[CMS]-/.test(fullCommand);
+
+    if (specialKeys.includes(fullCommand) || isModifierKey) {
+      // Send special key or modifier sequence as-is (unquoted) so tmux interprets it
       await executeTmux(`send-keys -t '${paneId}' ${fullCommand}`);
     } else {
       // For regular text, send each character individually to ensure proper processing

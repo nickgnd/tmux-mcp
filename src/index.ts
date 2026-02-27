@@ -351,7 +351,7 @@ server.tool(
     paneId: z.string().describe("ID of the tmux pane"),
     command: z.string().describe("Command to execute"),
     rawMode: z.boolean().optional().describe("Execute command without wrapper markers for REPL/interactive compatibility. Disables get-command-result status tracking. Use capture-pane after execution to verify command outcome."),
-    noEnter: z.boolean().optional().describe("Send keystrokes without pressing Enter. For TUI navigation in apps like btop, vim, less. Supports special keys (Up, Down, Escape, Tab, etc.) and strings (sent char-by-char for proper filtering). Automatically applies rawMode. Use capture-pane after to see results.")
+    noEnter: z.boolean().optional().describe("Send keystrokes without pressing Enter. For TUI navigation in apps like btop, vim, less. Supports special keys (Up, Down, Escape, Tab, etc.), modifier key sequences (C-c, C-z, C-d, M-a, etc.), and strings (sent char-by-char for proper filtering). Automatically applies rawMode. Use capture-pane after to see results.")
   },
   async ({ paneId, command, rawMode, noEnter }) => {
     try {
