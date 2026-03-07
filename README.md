@@ -108,3 +108,10 @@ The `capture-last-output`, `capture-last-command`, and `capture-last-command-wit
 - `paneId` (string, required) - Target pane ID (e.g. `%0`)
 - `n` (number, optional, default: 1) - Which command to capture (1 = most recent, 2 = second most recent, etc.)
 
+**Implementation notes:**
+
+- `capture-last-output` and `capture-last-command-with-output` navigate between prompt marks (A/C) directly using `previous-prompt`/`next-prompt` and their `-o` variants.
+- `capture-last-command` uses a different strategy: it navigates to the output start (C mark) via `previous-prompt -o`, then moves up one line to the command line and selects the full line. This is necessary because tmux's `next-prompt -o` does not advance from an A mark to the C mark of the same command — tmux treats them as the same prompt region.
+- `capture-last-command` only captures **single-line commands**. Multi-line commands will only get the last line.
+- The command line includes the PS1 prompt prefix (e.g. `➜` or `$`) since tmux doesn't expose the B mark (where user input starts) for navigation.
+

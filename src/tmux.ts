@@ -444,9 +444,59 @@ export async function captureLastOutput(paneId: string, n: number = 1): Promise<
 /**
  * Capture the command line (prompt + typed command) of the Nth-most-recent command.
  * Includes the PS1 prompt prefix since tmux doesn't expose the B mark for navigation.
+ *
+ * Uses a different strategy than output/command-with-output: navigates to the
+ * output start (C mark) via `previous-prompt -o`, then moves up one line to the
+ * command line and selects the full line. This is necessary because `next-prompt -o`
+ * from an A mark position does not advance to the C mark of the same command —
+ * tmux treats them as the same prompt region.
+ *
+ * Note: Only captures single-line commands. Multi-line commands will only get the last line.
  */
 export async function captureLastCommand(paneId: string, n: number = 1): Promise<string> {
-  return captureWithOSC133(paneId, n, 'command');
+  try {
+    await executeTmux(`copy-mode -t '${paneId}'`);
+
+    const initialPos = await executeTmux(
+      `display-message -p -t '${paneId}' '#{copy_cursor_x},#{copy_cursor_y}'`
+    );
+
+    // Navigate to the output start (C mark) of the Nth command
+    for (let i = 0; i < n; i++) {
+      await executeTmux(`send-keys -X -t '${paneId}' previous-prompt -o`);
+    }
+
+    const afterNavPos = await executeTmux(
+      `display-message -p -t '${paneId}' '#{copy_cursor_x},#{copy_cursor_y}'`
+    );
+    if (initialPos === afterNavPos) {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+      throw new Error(
+        'No OSC 133 prompt marks found in this pane. ' +
+        'Ensure your shell has OSC 133 / Shell Integration enabled.'
+      );
+    }
+
+    // Move up one line from the output start to the command line
+    await executeTmux(`send-keys -X -t '${paneId}' cursor-up`);
+
+    // Select the full line and copy
+    await executeTmux(`send-keys -X -t '${paneId}' select-line`);
+    await executeTmux(`send-keys -X -t '${paneId}' copy-selection-and-cancel`);
+
+    const result = await executeTmux('show-buffer');
+    return result;
+  } catch (error: any) {
+    try {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+    } catch {
+      // ignore cleanup errors
+    }
+    if (error.message.includes('No OSC 133')) {
+      throw error;
+    }
+    throw new Error(`Failed to capture command: ${error.message}`);
+  }
 }
 
 /**
