@@ -376,6 +376,13 @@ type CaptureMode = 'output' | 'command' | 'command-with-output';
  */
 async function captureWithOSC133(paneId: string, n: number, mode: CaptureMode): Promise<string> {
   try {
+    // Cancel any leftover copy mode from a previous call
+    try {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+    } catch {
+      // not in copy mode, that's fine
+    }
+
     // Enter copy mode
     await executeTmux(`copy-mode -t '${paneId}'`);
 
@@ -397,7 +404,8 @@ async function captureWithOSC133(paneId: string, n: number, mode: CaptureMode): 
     if (initialPos === afterNavPos) {
       await executeTmux(`send-keys -X -t '${paneId}' cancel`);
       throw new Error(
-        'No OSC 133 prompt marks found in this pane. ' +
+        `No OSC 133 prompt marks found in pane ${paneId}. ` +
+        `Cursor stayed at ${initialPos} after ${startCmd}. ` +
         'Ensure your shell has OSC 133 / Shell Integration enabled.'
       );
     }
@@ -455,6 +463,13 @@ export async function captureLastOutput(paneId: string, n: number = 1): Promise<
  */
 export async function captureLastCommand(paneId: string, n: number = 1): Promise<string> {
   try {
+    // Cancel any leftover copy mode from a previous call
+    try {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+    } catch {
+      // not in copy mode, that's fine
+    }
+
     await executeTmux(`copy-mode -t '${paneId}'`);
 
     const initialPos = await executeTmux(
@@ -472,7 +487,8 @@ export async function captureLastCommand(paneId: string, n: number = 1): Promise
     if (initialPos === afterNavPos) {
       await executeTmux(`send-keys -X -t '${paneId}' cancel`);
       throw new Error(
-        'No OSC 133 prompt marks found in this pane. ' +
+        `No OSC 133 prompt marks found in pane ${paneId}. ` +
+        `Cursor stayed at ${initialPos} after previous-prompt -o. ` +
         'Ensure your shell has OSC 133 / Shell Integration enabled.'
       );
     }
