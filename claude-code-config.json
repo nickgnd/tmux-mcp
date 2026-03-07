@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tmux": {
+      "command": "node",
+      "args": ["/host/tmux-mcp.feat-osc133-output-selection/build/index.js", "--shell-type=zsh"]
+    }
+  }
+}

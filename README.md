@@ -74,4 +74,37 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `kill-pane` - Kill a tmux pane by ID
 - `execute-command` - Execute a command in a tmux pane
 - `get-command-result` - Get the result of an executed command
+- `capture-last-output` - Capture the output of a recent command using OSC 133 marks
+- `capture-last-command` - Capture the command line of a recent command using OSC 133 marks
+- `capture-last-command-with-output` - Capture both command and output using OSC 133 marks
+
+### OSC 133 Shell Integration
+
+The `capture-last-output`, `capture-last-command`, and `capture-last-command-with-output` tools use [OSC 133 semantic prompt marks](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md) to precisely capture command output without guessing line counts or parsing prompt patterns.
+
+**Requirements:** Your shell must emit OSC 133 escape sequences. Many modern terminals (Ghostty, iTerm2, WezTerm) enable this automatically. For manual setup:
+
+- **Bash (4.4+):** Add to `.bashrc`:
+  ```bash
+  PS0=$'\033]133;C\007'
+  PS1='\[\033]133;B\007\]$ '
+  PROMPT_COMMAND='printf "\033]133;D;%s\007" "$?"; printf "\033]133;A\007"'
+  ```
+- **Zsh:** Add to `.zshrc`:
+  ```zsh
+  _osc133_preexec() { printf '\e]133;C\e\\' }
+  _osc133_precmd() {
+    printf '\e]133;D\e\\'
+    PROMPT=$'%{\e]133;A\e\\\\%}'"$PROMPT"$'%{\e]133;B\e\\\\%}'
+  }
+  autoload -Uz add-zsh-hook
+  add-zsh-hook preexec _osc133_preexec
+  add-zsh-hook precmd _osc133_precmd
+  ```
+  > **Note:** If you use a prompt theme like [Starship](https://starship.rs/) that regenerates `$PROMPT` in `precmd`, the `_osc133_precmd` hook wraps the regenerated prompt with A/B marks each time — no extra configuration needed.
+- **Fish:** Shell integration is built-in for supported terminals.
+
+**Parameters** (all three tools):
+- `paneId` (string, required) - Target pane ID (e.g. `%0`)
+- `n` (number, optional, default: 1) - Which command to capture (1 = most recent, 2 = second most recent, etc.)
 

@@ -362,3 +362,97 @@ function getEndMarkerText(): string {
     : `${endMarkerPrefix}$?`;
 }
 
+// --- OSC 133 Capture Tools ---
+
+type CaptureMode = 'output' | 'command' | 'command-with-output';
+
+/**
+ * Capture content using OSC 133 prompt marks via tmux copy mode navigation.
+ *
+ * Uses tmux's `previous-prompt`, `next-prompt`, and their `-o` (output) variants
+ * to select regions delimited by shell-emitted semantic marks.
+ *
+ * Note: Briefly uses tmux's default paste buffer for the copy operation.
+ */
+async function captureWithOSC133(paneId: string, n: number, mode: CaptureMode): Promise<string> {
+  try {
+    // Enter copy mode
+    await executeTmux(`copy-mode -t '${paneId}'`);
+
+    // Record cursor position to detect whether marks exist
+    const initialPos = await executeTmux(
+      `display-message -p -t '${paneId}' '#{copy_cursor_x},#{copy_cursor_y}'`
+    );
+
+    // Navigate to the start of the selection
+    const startCmd = mode === 'output' ? 'previous-prompt -o' : 'previous-prompt';
+    for (let i = 0; i < n; i++) {
+      await executeTmux(`send-keys -X -t '${paneId}' ${startCmd}`);
+    }
+
+    // Verify cursor moved — if not, there are no OSC 133 marks
+    const afterNavPos = await executeTmux(
+      `display-message -p -t '${paneId}' '#{copy_cursor_x},#{copy_cursor_y}'`
+    );
+    if (initialPos === afterNavPos) {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+      throw new Error(
+        'No OSC 133 prompt marks found in this pane. ' +
+        'Ensure your shell has OSC 133 / Shell Integration enabled.'
+      );
+    }
+
+    // Begin selection
+    await executeTmux(`send-keys -X -t '${paneId}' begin-selection`);
+
+    // Navigate to the end of the selection
+    const endCmd = mode === 'command' ? 'next-prompt -o' : 'next-prompt';
+    await executeTmux(`send-keys -X -t '${paneId}' ${endCmd}`);
+
+    // Adjust selection: next-prompt/next-prompt -o lands ON the mark character,
+    // which gets included in the selection. Step back one character to exclude it.
+    await executeTmux(`send-keys -X -t '${paneId}' cursor-left`);
+
+    // Copy selection and exit copy mode (uses default paste buffer)
+    await executeTmux(`send-keys -X -t '${paneId}' copy-selection-and-cancel`);
+
+    // Read the captured content
+    const result = await executeTmux('show-buffer');
+    return result;
+  } catch (error: any) {
+    // Best-effort exit from copy mode on failure
+    try {
+      await executeTmux(`send-keys -X -t '${paneId}' cancel`);
+    } catch {
+      // ignore cleanup errors
+    }
+
+    if (error.message.includes('No OSC 133')) {
+      throw error;
+    }
+    throw new Error(`Failed to capture ${mode}: ${error.message}`);
+  }
+}
+
+/**
+ * Capture the output (stdout/stderr) of the Nth-most-recent command using OSC 133 marks.
+ */
+export async function captureLastOutput(paneId: string, n: number = 1): Promise<string> {
+  return captureWithOSC133(paneId, n, 'output');
+}
+
+/**
+ * Capture the command line (prompt + typed command) of the Nth-most-recent command.
+ * Includes the PS1 prompt prefix since tmux doesn't expose the B mark for navigation.
+ */
+export async function captureLastCommand(paneId: string, n: number = 1): Promise<string> {
+  return captureWithOSC133(paneId, n, 'command');
+}
+
+/**
+ * Capture both the command line and its output for the Nth-most-recent command.
+ */
+export async function captureLastCommandWithOutput(paneId: string, n: number = 1): Promise<string> {
+  return captureWithOSC133(paneId, n, 'command-with-output');
+}
+
