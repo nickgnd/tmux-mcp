@@ -442,6 +442,65 @@ server.tool(
   }
 );
 
+// Capture last command output (OSC 133) - Tool
+server.tool(
+  "capture-last-output",
+  "Capture the output of the Nth-most-recent command in a pane using OSC 133 shell integration marks. Returns only stdout/stderr without the prompt or command line. Requires the shell to have OSC 133 integration enabled.",
+  {
+    paneId: z.string().describe("Target pane ID (e.g. %0)"),
+    n: z.number().min(1).optional().describe("Which command's output to capture (1 = most recent, 2 = second most recent, etc.). Default: 1")
+  },
+  async ({ paneId, n }) => {
+    try {
+      const output = await tmux.captureLastOutput(paneId, n ?? 1);
+      return {
+        content: [{
+          type: "text",
+          text: output || "No output captured"
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error capturing last output: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Capture last command line (OSC 133) - Tool
+server.tool(
+  "capture-last-command",
+  "Capture the command line (prompt + user input) of the Nth-most-recent command using OSC 133 marks. Includes the PS1 prompt prefix. Requires OSC 133 shell integration.",
+  {
+    paneId: z.string().describe("Target pane ID (e.g. %0)"),
+    n: z.number().min(1).optional().describe("Which command to capture (1 = most recent, 2 = second most recent, etc.). Default: 1")
+  },
+  async ({ paneId, n }) => {
+    try {
+      const command = await tmux.captureLastCommand(paneId, n ?? 1);
+      return {
+        content: [{
+          type: "text",
+          text: command || "No command captured"
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error capturing last command: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
+
 // Expose tmux session list as a resource
 server.resource(
   "Tmux Sessions",
