@@ -364,7 +364,7 @@ function getEndMarkerText(): string {
 
 // --- OSC 133 Capture Tools ---
 
-type CaptureMode = 'output' | 'command' | 'command-with-output';
+type CaptureMode = 'output' | 'command';
 
 /**
  * Capture content using OSC 133 prompt marks via tmux copy mode navigation.
@@ -453,7 +453,7 @@ export async function captureLastOutput(paneId: string, n: number = 1): Promise<
  * Capture the command line (prompt + typed command) of the Nth-most-recent command.
  * Includes the PS1 prompt prefix since tmux doesn't expose the B mark for navigation.
  *
- * Uses a different strategy than output/command-with-output: navigates to the
+ * Uses a different strategy than output: navigates to the
  * output start (C mark) via `previous-prompt -o`, then moves up one line to the
  * command line and selects the full line. This is necessary because `next-prompt -o`
  * from an A mark position does not advance to the C mark of the same command —
@@ -515,10 +515,4 @@ export async function captureLastCommand(paneId: string, n: number = 1): Promise
   }
 }
 
-/**
- * Capture both the command line and its output for the Nth-most-recent command.
- */
-export async function captureLastCommandWithOutput(paneId: string, n: number = 1): Promise<string> {
-  return captureWithOSC133(paneId, n, 'command-with-output');
-}
 

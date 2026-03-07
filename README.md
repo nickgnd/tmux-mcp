@@ -76,11 +76,10 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `get-command-result` - Get the result of an executed command
 - `capture-last-output` - Capture the output of a recent command using OSC 133 marks
 - `capture-last-command` - Capture the command line of a recent command using OSC 133 marks
-- `capture-last-command-with-output` - Capture both command and output using OSC 133 marks
 
 ### OSC 133 Shell Integration
 
-The `capture-last-output`, `capture-last-command`, and `capture-last-command-with-output` tools use [OSC 133 semantic prompt marks](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md) to precisely capture command output without guessing line counts or parsing prompt patterns.
+The `capture-last-output` and `capture-last-command` tools use [OSC 133 semantic prompt marks](https://gitlab.freedesktop.org/Per_Bothner/specifications/blob/master/proposals/semantic-prompts.md) to precisely capture command output without guessing line counts or parsing prompt patterns.
 
 **Requirements:** Your shell must emit OSC 133 escape sequences. Many modern terminals (Ghostty, iTerm2, WezTerm) enable this automatically. For manual setup:
 
@@ -104,13 +103,13 @@ The `capture-last-output`, `capture-last-command`, and `capture-last-command-wit
   > **Note:** If you use a prompt theme like [Starship](https://starship.rs/) that regenerates `$PROMPT` in `precmd`, the `_osc133_precmd` hook wraps the regenerated prompt with A/B marks each time — no extra configuration needed.
 - **Fish:** Shell integration is built-in for supported terminals.
 
-**Parameters** (all three tools):
+**Parameters** (both tools):
 - `paneId` (string, required) - Target pane ID (e.g. `%0`)
 - `n` (number, optional, default: 1) - Which command to capture (1 = most recent, 2 = second most recent, etc.)
 
 **Implementation notes:**
 
-- `capture-last-output` and `capture-last-command-with-output` navigate between prompt marks (A/C) directly using `previous-prompt`/`next-prompt` and their `-o` variants.
+- `capture-last-output` navigates between prompt marks (A/C) directly using `previous-prompt`/`next-prompt` and their `-o` variants.
 - `capture-last-command` uses a different strategy: it navigates to the output start (C mark) via `previous-prompt -o`, then moves up one line to the command line and selects the full line. This is necessary because tmux's `next-prompt -o` does not advance from an A mark to the C mark of the same command — tmux treats them as the same prompt region.
 - `capture-last-command` only captures **single-line commands**. Multi-line commands will only get the last line.
 - The command line includes the PS1 prompt prefix (e.g. `➜` or `$`) since tmux doesn't expose the B mark (where user input starts) for navigation.
