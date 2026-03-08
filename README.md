@@ -1,6 +1,6 @@
 # Tmux MCP Server
 
-Model Context Protocol server that enables Claude Desktop to interact with and view tmux session content. This integration allows AI assistants to read from, control, and observe your terminal sessions.
+Model Context Protocol server that enables AI assistants to interact with and view tmux session content. This integration allows AI assistants to read from, control, and observe your terminal sessions.
 
 ## Features
 
@@ -25,7 +25,25 @@ Check out this short video to get excited!
 
 ## Usage
 
-### Configure Claude Desktop
+### Claude Code
+
+```sh
+claude mcp add tmux -- npx -y tmux-mcp
+```
+
+### Codex
+
+```sh
+codex mcp add tmux -- npx -y tmux-mcp
+```
+
+### Gemini CLI
+
+```sh
+gemini mcp add tmux npx -y tmux-mcp
+```
+
+### Claude Desktop
 
 Add this MCP server to your Claude Desktop configuration:
 
@@ -40,7 +58,13 @@ Add this MCP server to your Claude Desktop configuration:
 
 ### MCP server options
 
-You can optionally specify the command line shell you are using, if unspecified it defaults to `bash`
+You can optionally specify the command line shell you are using, if unspecified it defaults to `bash`. Pass `--shell-type` to the command:
+
+```sh
+claude mcp add tmux -- npx -y tmux-mcp --shell-type=zsh
+```
+
+Or in the Claude Desktop JSON config:
 
 ```json
 "mcpServers": {

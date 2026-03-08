@@ -1,8 +1,8 @@
-import { exec as execCallback } from "child_process";
+import { execFile as execFileCallback } from "child_process";
 import { promisify } from "util";
 import { v4 as uuidv4 } from 'uuid';
 
-const exec = promisify(execCallback);
+const execFile = promisify(execFileCallback);
 
 // Basic interfaces for tmux objects
 export interface TmuxSession {
@@ -53,11 +53,13 @@ export function setShellConfig(config: { type: string }): void {
 }
 
 /**
- * Execute a tmux command and return the result
+ * Execute a tmux command and return the result.
+ * Uses execFile to pass arguments directly without shell interpretation,
+ * preventing command injection.
  */
-export async function executeTmux(tmuxCommand: string): Promise<string> {
+export async function executeTmux(args: string[]): Promise<string> {
   try {
-    const { stdout } = await exec(`tmux ${tmuxCommand}`);
+    const { stdout } = await execFile('tmux', args);
     return stdout.trim();
   } catch (error: any) {
     throw new Error(`Failed to execute tmux command: ${error.message}`);
@@ -69,7 +71,7 @@ export async function executeTmux(tmuxCommand: string): Promise<string> {
  */
 export async function isTmuxRunning(): Promise<boolean> {
   try {
-    await executeTmux("list-sessions -F '#{session_name}'");
+    await executeTmux(['list-sessions', '-F', '#{session_name}']);
     return true;
   } catch (error) {
     return false;
@@ -81,7 +83,7 @@ export async function isTmuxRunning(): Promise<boolean> {
  */
 export async function listSessions(): Promise<TmuxSession[]> {
   const format = "#{session_id}:#{session_name}:#{?session_attached,1,0}:#{session_windows}";
-  const output = await executeTmux(`list-sessions -F '${format}'`);
+  const output = await executeTmux(['list-sessions', '-F', format]);
 
   if (!output) return [];
 
@@ -113,7 +115,7 @@ export async function findSessionByName(name: string): Promise<TmuxSession | nul
  */
 export async function listWindows(sessionId: string): Promise<TmuxWindow[]> {
   const format = "#{window_id}:#{window_name}:#{?window_active,1,0}";
-  const output = await executeTmux(`list-windows -t '${sessionId}' -F '${format}'`);
+  const output = await executeTmux(['list-windows', '-t', sessionId, '-F', format]);
 
   if (!output) return [];
 
@@ -133,7 +135,7 @@ export async function listWindows(sessionId: string): Promise<TmuxWindow[]> {
  */
 export async function listPanes(windowId: string): Promise<TmuxPane[]> {
   const format = "#{pane_id}:#{pane_title}:#{?pane_active,1,0}";
-  const output = await executeTmux(`list-panes -t '${windowId}' -F '${format}'`);
+  const output = await executeTmux(['list-panes', '-t', windowId, '-F', format]);
 
   if (!output) return [];
 
@@ -152,15 +154,17 @@ export async function listPanes(windowId: string): Promise<TmuxPane[]> {
  * Capture content from a specific pane, by default the latest 200 lines.
  */
 export async function capturePaneContent(paneId: string, lines: number = 200, includeColors: boolean = false): Promise<string> {
-  const colorFlag = includeColors ? '-e' : '';
-  return executeTmux(`capture-pane -p ${colorFlag} -t '${paneId}' -S -${lines} -E -`);
+  const args = ['capture-pane', '-p'];
+  if (includeColors) args.push('-e');
+  args.push('-t', paneId, '-S', `-${lines}`, '-E', '-');
+  return executeTmux(args);
 }
 
 /**
  * Create a new tmux session
  */
 export async function createSession(name: string): Promise<TmuxSession | null> {
-  await executeTmux(`new-session -d -s "${name}"`);
+  await executeTmux(['new-session', '-d', '-s', name]);
   return findSessionByName(name);
 }
 
@@ -168,7 +172,7 @@ export async function createSession(name: string): Promise<TmuxSession | null> {
  * Create a new window in a session
  */
 export async function createWindow(sessionId: string, name: string): Promise<TmuxWindow | null> {
-  const output = await executeTmux(`new-window -t '${sessionId}' -n '${name}'`);
+  await executeTmux(['new-window', '-t', sessionId, '-n', name]);
   const windows = await listWindows(sessionId);
   return windows.find(window => window.name === name) || null;
 }
@@ -177,21 +181,21 @@ export async function createWindow(sessionId: string, name: string): Promise<Tmu
  * Kill a tmux session by ID
  */
 export async function killSession(sessionId: string): Promise<void> {
-  await executeTmux(`kill-session -t '${sessionId}'`);
+  await executeTmux(['kill-session', '-t', sessionId]);
 }
 
 /**
  * Kill a tmux window by ID
  */
 export async function killWindow(windowId: string): Promise<void> {
-  await executeTmux(`kill-window -t '${windowId}'`);
+  await executeTmux(['kill-window', '-t', windowId]);
 }
 
 /**
  * Kill a tmux pane by ID
  */
 export async function killPane(paneId: string): Promise<void> {
-  await executeTmux(`kill-pane -t '${paneId}'`);
+  await executeTmux(['kill-pane', '-t', paneId]);
 }
 
 /**
@@ -202,29 +206,19 @@ export async function splitPane(
   direction: 'horizontal' | 'vertical' = 'vertical',
   size?: number
 ): Promise<TmuxPane | null> {
-  // Build the split-window command
-  let splitCommand = 'split-window';
-
-  // Add direction flag (-h for horizontal, -v for vertical)
-  if (direction === 'horizontal') {
-    splitCommand += ' -h';
-  } else {
-    splitCommand += ' -v';
-  }
-
-  // Add target pane
-  splitCommand += ` -t '${targetPaneId}'`;
+  // Build the split-window args
+  const args = ['split-window', direction === 'horizontal' ? '-h' : '-v', '-t', targetPaneId];
 
   // Add size if specified (as percentage)
   if (size !== undefined && size > 0 && size < 100) {
-    splitCommand += ` -p ${size}`;
+    args.push('-p', String(size));
   }
 
   // Execute the split command
-  await executeTmux(splitCommand);
+  await executeTmux(args);
 
   // Get the window ID from the target pane to list all panes
-  const windowInfo = await executeTmux(`display-message -p -t '${targetPaneId}' '#{window_id}'`);
+  const windowInfo = await executeTmux(['display-message', '-p', '-t', targetPaneId, '#{window_id}']);
 
   // List all panes in the window to find the newly created one
   const panes = await listPanes(windowInfo);
@@ -272,16 +266,16 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
 
     if (specialKeys.includes(fullCommand)) {
       // Send special key as-is
-      await executeTmux(`send-keys -t '${paneId}' ${fullCommand}`);
+      await executeTmux(['send-keys', '-t', paneId, fullCommand]);
     } else {
       // For regular text, send each character individually to ensure proper processing
       // This handles both single characters (like 'q', 'f') and strings (like 'beam')
       for (const char of fullCommand) {
-        await executeTmux(`send-keys -t '${paneId}' '${char.replace(/'/g, "'\\''")}'`);
+        await executeTmux(['send-keys', '-t', paneId, char]);
       }
     }
   } else {
-    await executeTmux(`send-keys -t '${paneId}' '${fullCommand.replace(/'/g, "'\\''")}' Enter`);
+    await executeTmux(['send-keys', '-t', paneId, fullCommand, 'Enter']);
   }
 
   return commandId;
