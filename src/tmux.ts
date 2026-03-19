@@ -150,10 +150,19 @@ export async function listPanes(windowId: string): Promise<TmuxPane[]> {
 
 /**
  * Capture content from a specific pane, by default the latest 200 lines.
+ *
+ * Note: tmux's `-S -N` flag means "start N lines above the visible pane",
+ * but the visible pane content is always included, so the raw output is
+ * approximately N + pane_height lines. We trim to exactly N lines here.
  */
 export async function capturePaneContent(paneId: string, lines: number = 200, includeColors: boolean = false): Promise<string> {
   const colorFlag = includeColors ? '-e' : '';
-  return executeTmux(`capture-pane -p ${colorFlag} -t '${paneId}' -S -${lines} -E -`);
+  const content = await executeTmux(`capture-pane -p ${colorFlag} -t '${paneId}' -S -${lines} -E -`);
+  const allLines = content.split('\n');
+  if (allLines.length > lines) {
+    return allLines.slice(-lines).join('\n');
+  }
+  return content;
 }
 
 /**
