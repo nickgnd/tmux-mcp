@@ -202,11 +202,12 @@ server.tool(
   "Create a new window in a tmux session",
   {
     sessionId: z.string().describe("ID of the tmux session"),
-    name: z.string().describe("Name for the new window")
+    name: z.string().describe("Name for the new window"),
+    background: z.boolean().optional().describe("Create window in the background without switching focus to it (default: false)")
   },
-  async ({ sessionId, name }) => {
+  async ({ sessionId, name, background }) => {
     try {
-      const window = await tmux.createWindow(sessionId, name);
+      const window = await tmux.createWindow(sessionId, name, background);
       return {
         content: [{
           type: "text",
