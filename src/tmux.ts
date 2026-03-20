@@ -167,8 +167,9 @@ export async function createSession(name: string): Promise<TmuxSession | null> {
 /**
  * Create a new window in a session
  */
-export async function createWindow(sessionId: string, name: string): Promise<TmuxWindow | null> {
-  const output = await executeTmux(`new-window -t '${sessionId}' -n '${name}'`);
+export async function createWindow(sessionId: string, name: string, background: boolean = false): Promise<TmuxWindow | null> {
+  const bgFlag = background ? '-d ' : '';
+  await executeTmux(`new-window ${bgFlag}-t '${sessionId}' -n '${name}'`);
   const windows = await listWindows(sessionId);
   return windows.find(window => window.name === name) || null;
 }
