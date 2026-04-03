@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { parseArgs } from 'node:util';
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -609,17 +608,6 @@ server.resource(
 
 async function main() {
   try {
-    const { values } = parseArgs({
-      options: {
-        'shell-type': { type: 'string', default: 'bash', short: 's' }
-      }
-    });
-
-    // Set shell configuration
-    tmux.setShellConfig({
-      type: values['shell-type'] as string
-    });
-
     // Start the MCP server
     const transport = new StdioServerTransport();
     await server.connect(transport);

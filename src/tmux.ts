@@ -39,19 +39,6 @@ interface CommandExecution {
 
 export type ShellType = 'bash' | 'zsh' | 'fish';
 
-let shellConfig: { type: ShellType } = { type: 'bash' };
-
-export function setShellConfig(config: { type: string }): void {
-  // Validate shell type
-  const validShells: ShellType[] = ['bash', 'zsh', 'fish'];
-
-  if (validShells.includes(config.type as ShellType)) {
-    shellConfig = { type: config.type as ShellType };
-  } else {
-    shellConfig = { type: 'bash' };
-  }
-}
-
 /**
  * Execute a tmux command and return the result
  */
@@ -236,8 +223,156 @@ export async function splitPane(
 // Map to track ongoing command executions
 const activeCommands = new Map<string, CommandExecution>();
 
+// Cache for detected shell types per pane
+const paneShellCache = new Map<string, ShellType>();
+
+// Cache for panes that have been initialized with HISTCONTROL
+const initializedPanes = new Set<string>();
+
 const startMarkerText = 'TMUX_MCP_START';
 const endMarkerPrefix = "TMUX_MCP_DONE_";
+const initMarker = 'TMUX_MCP_INIT_DONE';
+
+// Detect shell type for a specific pane
+async function detectPaneShell(paneId: string): Promise<ShellType> {
+  // Check cache first
+  const cached = paneShellCache.get(paneId);
+  if (cached) return cached;
+
+  try {
+    // Get the current command/process running in the pane
+    const output = await executeTmux(`display-message -p -t '${paneId}' '#{pane_current_command}'`);
+    const cmd = output.toLowerCase().trim();
+
+    let shellType: ShellType = 'bash'; // default
+
+    if (cmd === 'fish' || cmd.endsWith('/fish')) {
+      shellType = 'fish';
+    } else if (cmd === 'zsh' || cmd.endsWith('/zsh')) {
+      shellType = 'zsh';
+    } else if (cmd === 'bash' || cmd.endsWith('/bash')) {
+      shellType = 'bash';
+    }
+    // For ssh or other commands, default to bash (most common on servers)
+
+    paneShellCache.set(paneId, shellType);
+    return shellType;
+  } catch {
+    return 'bash'; // default fallback
+  }
+}
+
+// Check if pane is running SSH
+async function isSSHPane(paneId: string): Promise<boolean> {
+  try {
+    const output = await executeTmux(`display-message -p -t '${paneId}' '#{pane_current_command}'`);
+    const cmd = output.toLowerCase().trim();
+    return cmd === 'ssh';
+  } catch {
+    return false;
+  }
+}
+
+// Detect remote shell type and initialize HISTCONTROL in a single command
+// This ensures the detection command itself doesn't pollute history
+async function detectAndInitializeRemoteShell(paneId: string): Promise<ShellType> {
+  // Single command that:
+  // 1. Sets HISTCONTROL (for bash) or HIST_IGNORE_SPACE (for zsh) 
+  // 2. Outputs shell type for detection
+  // Leading space + HISTCONTROL setting ensures minimal history pollution
+  // For bash: HISTCONTROL takes effect immediately for subsequent commands
+  // For zsh: setopt takes effect immediately
+  // For fish: No equivalent, but fish is rare on servers
+  const initAndDetectCmd = ` export HISTCONTROL=ignorespace 2>/dev/null; setopt HIST_IGNORE_SPACE 2>/dev/null; echo ${initMarker}_SHELL_$0`;
+  await executeTmux(`send-keys -t '${paneId}' '${initAndDetectCmd}' Enter`);
+  
+  // Wait for the command to complete
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // Capture pane content and look for the marker
+  const content = await capturePaneContent(paneId, 50);
+  
+  // Parse the shell type from output
+  const match = content.match(new RegExp(`${initMarker}_SHELL_(-?\\w+)`));
+  let shellType: ShellType = 'bash'; // default
+  
+  if (match) {
+    const shell = match[1].toLowerCase().replace(/^-/, ''); // Remove leading dash (login shell)
+    if (shell === 'fish' || shell.endsWith('/fish')) {
+      shellType = 'fish';
+    } else if (shell === 'zsh' || shell.endsWith('/zsh')) {
+      shellType = 'zsh';
+    }
+  }
+  
+  // Mark as initialized (HISTCONTROL/HIST_IGNORE_SPACE already set in the combined command)
+  initializedPanes.add(paneId);
+  paneShellCache.set(paneId, shellType);
+  
+  return shellType;
+}
+
+// Initialize pane with proper HISTCONTROL setting
+// Works for both local and SSH panes
+async function initializePane(paneId: string, shellType: ShellType): Promise<void> {
+  // Set up history control based on shell type
+  // All commands start with space to prevent history recording (if HISTCONTROL is set)
+  if (shellType === 'bash') {
+    // For bash, export HISTCONTROL to ignore commands starting with space
+    const initCmd = ` export HISTCONTROL="\${HISTCONTROL:+\$HISTCONTROL:}ignorespace"; echo ${initMarker}`;
+    await executeTmux(`send-keys -t '${paneId}' '${initCmd}' Enter`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+  } else if (shellType === 'zsh') {
+    // For zsh, set HIST_IGNORE_SPACE option
+    const initCmd = ` setopt HIST_IGNORE_SPACE 2>/dev/null; echo ${initMarker}`;
+    await executeTmux(`send-keys -t '${paneId}' '${initCmd}' Enter`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  // For fish, history is controlled by fish_history variable
+  // Leading space doesn't work by default, but we handle fish differently in command execution
+  
+  // Mark this pane as initialized
+  initializedPanes.add(paneId);
+}
+
+// Initialize SSH pane - detects remote shell and sets up history control in one command
+async function initializeSSHPane(paneId: string): Promise<ShellType> {
+  // Combined detection and initialization (no separate initializePane call needed)
+  return await detectAndInitializeRemoteShell(paneId);
+}
+
+// Get end marker text based on shell type
+function getEndMarkerForShell(shellType: ShellType): string {
+  return shellType === 'fish'
+    ? `${endMarkerPrefix}$status`
+    : `${endMarkerPrefix}$?`;
+}
+
+// Build command for fish shell (no HISTCONTROL, uses fish-specific approach)
+function buildFishCommand(command: string): string {
+  // Fish uses $status instead of $?
+  // Must NOT escape $status so fish expands it to the actual exit code
+  return `echo "${startMarkerText}"; ${command}; set __exit $status; echo "${endMarkerPrefix}$__exit"`;
+}
+
+// Build command for bash/zsh (with HISTCONTROL prefix for safety)
+function buildBashZshCommand(command: string, shellType: ShellType, isInitialized: boolean): string {
+  const endMarker = getEndMarkerForShell(shellType);
+  
+  if (isInitialized) {
+    // Pane is initialized, HISTCONTROL/HIST_IGNORE_SPACE is set
+    // Leading space is enough to prevent history recording
+    return ` echo "${startMarkerText}"; ${command}; echo "${endMarker}"`;
+  } else {
+    // Pane not initialized yet, include inline HISTCONTROL setting
+    if (shellType === 'zsh') {
+      return ` setopt HIST_IGNORE_SPACE 2>/dev/null; echo "${startMarkerText}"; ${command}; echo "${endMarker}"`;
+    } else {
+      // bash
+      return ` HISTCONTROL=ignorespace; echo "${startMarkerText}"; ${command}; echo "${endMarker}"`;
+    }
+  }
+}
 
 // Execute a command in a tmux pane and track its execution
 export async function executeCommand(paneId: string, command: string, rawMode?: boolean, noEnter?: boolean): Promise<string> {
@@ -245,11 +380,44 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
   const commandId = uuidv4();
 
   let fullCommand: string;
+  
   if (rawMode || noEnter) {
+    // Raw mode or noEnter - use command as-is
     fullCommand = command;
   } else {
-    const endMarkerText = getEndMarkerText();
-    fullCommand = `echo "${startMarkerText}"; ${command}; echo "${endMarkerText}"`;
+    // Normal mode - use shell-aware command building with history pollution prevention
+    // Check if this is an SSH pane
+    const isSSH = await isSSHPane(paneId);
+    
+    let shellType: ShellType;
+    let isInitialized = initializedPanes.has(paneId);
+    
+    if (isSSH && !isInitialized) {
+      // Initialize SSH pane (detects remote shell and sets up HISTCONTROL)
+      shellType = await initializeSSHPane(paneId);
+      isInitialized = true;
+    } else if (!isSSH && !isInitialized) {
+      // Local pane - detect shell and initialize if needed
+      shellType = await detectPaneShell(paneId);
+      
+      // For local non-fish shells, initialize HISTCONTROL
+      if (shellType !== 'fish') {
+        await initializePane(paneId, shellType);
+        isInitialized = true;
+      }
+    } else {
+      // Use cached shell type
+      shellType = paneShellCache.get(paneId) || await detectPaneShell(paneId);
+    }
+
+    // Build the full command based on shell type
+    if (shellType === 'fish') {
+      // Fish shell - no HISTCONTROL support
+      fullCommand = buildFishCommand(command);
+    } else {
+      // Bash or Zsh
+      fullCommand = buildBashZshCommand(command, shellType, isInitialized);
+    }
   }
 
   // Store command in tracking map
@@ -355,10 +523,3 @@ export function cleanupOldCommands(maxAgeMinutes: number = 60): void {
     }
   }
 }
-
-function getEndMarkerText(): string {
-  return shellConfig.type === 'fish'
-    ? `${endMarkerPrefix}$status`
-    : `${endMarkerPrefix}$?`;
-}
-
