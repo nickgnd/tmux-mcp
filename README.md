@@ -73,5 +73,6 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `kill-window` - Kill a tmux window by ID
 - `kill-pane` - Kill a tmux pane by ID
 - `execute-command` - Execute a command in a tmux pane
+- `execute-command-wait` - Execute a command and wait for its result in a single call
 - `get-command-result` - Get the result of an executed command
 

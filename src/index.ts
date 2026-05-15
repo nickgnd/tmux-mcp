@@ -390,6 +390,49 @@ server.tool(
   }
 );
 
+// Execute command and wait for result - Tool
+server.tool(
+  "execute-command-wait",
+  "Execute a command in a tmux pane and wait synchronously for its completion in a single MCP call. Returns the final status, exit code and output directly — no need to poll 'get-command-result' afterwards. Use this for short, non-interactive commands where you want the result immediately (e.g. `ls`, `git status`, quick builds). Prefer the async pair 'execute-command' + 'get-command-result' for long-running commands (the MCP call blocks until completion or timeout), and for interactive apps / REPLs / TUI navigation (use 'execute-command' with rawMode or noEnter instead, since status tracking is unavailable in those modes). If the timeout elapses before completion, the response reports status 'pending' and returns the Command ID so you can keep polling with 'get-command-result'.",
+  {
+    paneId: z.string().describe("ID of the tmux pane"),
+    command: z.string().describe("Command to execute. Avoid heredoc (cat << EOF) and multi-line constructs — they conflict with the start/end markers used for status tracking. Prefer: printf 'line1\\nline2\\n' > file, echo statements, or write to a temp file."),
+    timeout: z.number().min(1).max(600).optional().describe("Maximum time to wait for completion, in seconds. Default: 30. Max: 600 (10 min). If exceeded, the tool returns with status 'pending' and the command keeps running in the pane."),
+    pollInterval: z.number().min(50).max(5000).optional().describe("Polling interval in milliseconds while waiting. Default: 500. Lower values give faster response but more tmux calls.")
+  },
+  async ({ paneId, command, timeout, pollInterval }) => {
+    try {
+      const timeoutMs = (timeout ?? 30) * 1000;
+      const pollMs = pollInterval ?? 500;
+
+      const result = await tmux.executeCommandAndWait(paneId, command, timeoutMs, pollMs);
+
+      let resultText: string;
+      if (result.status === 'pending') {
+        const resourceUri = `tmux://command/${result.id}/result`;
+        resultText = `Status: pending (timeout of ${timeout ?? 30}s reached)\nCommand: ${result.command}\nCommand ID: ${result.id}\n\nThe command is still running in the pane. Poll 'get-command-result' with this Command ID, or read resource ${resourceUri}, to retrieve the final output.`;
+      } else {
+        resultText = `Status: ${result.status}\nExit code: ${result.exitCode}\nCommand: ${result.command}\n\n--- Output ---\n${result.result ?? ''}`;
+      }
+
+      return {
+        content: [{
+          type: "text",
+          text: resultText
+        }]
+      };
+    } catch (error) {
+      return {
+        content: [{
+          type: "text",
+          text: `Error executing command: ${error}`
+        }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Get command result - Tool
 server.tool(
   "get-command-result",

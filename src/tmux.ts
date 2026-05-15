@@ -338,6 +338,32 @@ export function getCommand(commandId: string): CommandExecution | null {
   return activeCommands.get(commandId) || null;
 }
 
+export async function executeCommandAndWait(
+  paneId: string,
+  command: string,
+  timeoutMs: number = 30000,
+  pollIntervalMs: number = 500
+): Promise<CommandExecution> {
+  const commandId = await executeCommand(paneId, command, false, false);
+
+  const deadline = Date.now() + timeoutMs;
+
+  while (true) {
+    const status = await checkCommandStatus(commandId);
+
+    if (status && status.status !== 'pending') {
+      return status;
+    }
+
+    if (Date.now() >= deadline) {
+      return status ?? (activeCommands.get(commandId) as CommandExecution);
+    }
+
+    const remaining = deadline - Date.now();
+    await new Promise(resolve => setTimeout(resolve, Math.min(pollIntervalMs, remaining)));
+  }
+}
+
 // Get all active command IDs
 export function getActiveCommandIds(): string[] {
   return Array.from(activeCommands.keys());
