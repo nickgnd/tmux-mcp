@@ -38,6 +38,19 @@ Add this MCP server to your Claude Desktop configuration:
 }
 ```
 
+Optional local guardrail with [Armorer Guard](https://github.com/ArmorerLabs/Armorer-Guard):
+
+```json
+"mcpServers": {
+  "tmux": {
+    "command": "armorer-guard",
+    "args": ["mcp-proxy", "--", "npx", "-y", "tmux-mcp"]
+  }
+}
+```
+
+This wraps the same tmux MCP server with a local proxy that inspects command and pane-control tool arguments for prompt injection, credential leakage, exfiltration risk, and dangerous actions before forwarding safe calls.
+
 ### MCP server options
 
 You can optionally specify the command line shell you are using, if unspecified it defaults to `bash`
@@ -74,4 +87,3 @@ The MCP server needs to know the shell only when executing commands, to properly
 - `kill-pane` - Kill a tmux pane by ID
 - `execute-command` - Execute a command in a tmux pane
 - `get-command-result` - Get the result of an executed command
-
