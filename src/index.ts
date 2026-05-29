@@ -346,18 +346,30 @@ server.tool(
 // Execute command in pane - Tool
 server.tool(
   "execute-command",
-  "Execute a command in a tmux pane and get results. For interactive applications (REPLs, editors), use `rawMode=true`. IMPORTANT: When `rawMode=false` (default), avoid heredoc syntax (cat << EOF) and other multi-line constructs as they conflict with command wrapping. For file writing, prefer: printf 'content\\n' > file, echo statements, or write to temp files instead",
+  "Execute a command in a tmux pane and get results. For interactive applications (REPLs, editors), use `rawMode=true`. Use `stdin` to pipe content to the command via a temp file when dealing with complex content (nested quotes, Unicode, long text). IMPORTANT: When `rawMode=false` (default) and no `stdin`, avoid heredoc syntax (cat << EOF) and other multi-line constructs as they conflict with command wrapping.",
   {
     paneId: z.string().describe("ID of the tmux pane"),
     command: z.string().describe("Command to execute"),
     rawMode: z.boolean().optional().describe("Execute command without wrapper markers for REPL/interactive compatibility. Disables get-command-result status tracking. Use capture-pane after execution to verify command outcome."),
-    noEnter: z.boolean().optional().describe("Send keystrokes without pressing Enter. For TUI navigation in apps like btop, vim, less. Supports special keys (Up, Down, Escape, Tab, etc.) and strings (sent char-by-char for proper filtering). Automatically applies rawMode. Use capture-pane after to see results.")
+    noEnter: z.boolean().optional().describe("Send keystrokes without pressing Enter. For TUI navigation in apps like btop, vim, less. Supports special keys (Up, Down, Escape, Tab, C-c, C-d, etc.) and strings (sent char-by-char for proper filtering). Automatically applies rawMode. Use capture-pane after to see results."),
+    stdin: z.string().optional().describe("Content to pipe to the command as stdin via a temp file. Use when the command contains characters that break shell parsing (nested quotes, Chinese/Unicode text, special symbols, very long content). The content is written to a temp file and fed via input redirection. Cannot be used with rawMode or noEnter.")
   },
-  async ({ paneId, command, rawMode, noEnter }) => {
+  async ({ paneId, command, rawMode, noEnter, stdin }) => {
     try {
+      // Validate: stdin cannot be used with rawMode or noEnter
+      if (stdin && (rawMode || noEnter)) {
+        return {
+          content: [{
+            type: "text",
+            text: "Error: stdin cannot be used with rawMode or noEnter."
+          }],
+          isError: true
+        };
+      }
+
       // If noEnter is true, automatically apply rawMode
       const effectiveRawMode = noEnter || rawMode;
-      const commandId = await tmux.executeCommand(paneId, command, effectiveRawMode, noEnter);
+      const commandId = await tmux.executeCommand(paneId, command, effectiveRawMode, noEnter, stdin);
 
       if (effectiveRawMode) {
         const modeText = noEnter ? "Keys sent without Enter" : "Interactive command started (rawMode)";
@@ -623,6 +635,11 @@ async function main() {
     // Start the MCP server
     const transport = new StdioServerTransport();
     await server.connect(transport);
+
+    // Clean up temp files on process exit
+    process.on('exit', () => {
+      tmux.cleanupAllTempFiles();
+    });
   } catch (error) {
     console.error("Failed to start MCP server:", error);
     process.exit(1);

@@ -1,6 +1,9 @@
 import { exec as execCallback } from "child_process";
 import { promisify } from "util";
 import { v4 as uuidv4 } from 'uuid';
+import { writeFileSync, unlinkSync, existsSync } from "fs";
+import { join } from "path";
+import { tmpdir } from "os";
 
 const exec = promisify(execCallback);
 
@@ -236,27 +239,85 @@ export async function splitPane(
 // Map to track ongoing command executions
 const activeCommands = new Map<string, CommandExecution>();
 
+// Set to track temp files for cleanup
+const tempFiles = new Set<string>();
+
 const startMarkerText = 'TMUX_MCP_START';
 const endMarkerPrefix = "TMUX_MCP_DONE_";
 
+/**
+ * Check if a key name is a tmux special key (named keys + modifier patterns)
+ */
+function isSpecialKey(key: string): boolean {
+  const namedKeys = ['Up', 'Down', 'Left', 'Right', 'Escape', 'Tab', 'Enter', 'Space',
+    'BSpace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+    'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
+  if (namedKeys.includes(key)) return true;
+  // Match C-<key> (Ctrl+key) and M-<key> (Alt/Meta+key) patterns
+  if (/^[CM]-./.test(key)) return true;
+  return false;
+}
+
+/**
+ * Schedule a temp file for deletion after a delay
+ */
+export function scheduleTempFileCleanup(filePath: string, delayMs: number = 30000): void {
+  setTimeout(() => {
+    try {
+      if (existsSync(filePath)) {
+        unlinkSync(filePath);
+      }
+    } catch {
+      // Ignore cleanup errors -- temp files in /tmp are ephemeral anyway
+    }
+    tempFiles.delete(filePath);
+  }, delayMs);
+}
+
+/**
+ * Clean up all remaining temp files (called on process exit)
+ */
+export function cleanupAllTempFiles(): void {
+  for (const filePath of tempFiles) {
+    try {
+      if (existsSync(filePath)) {
+        unlinkSync(filePath);
+      }
+    } catch {
+      // Ignore
+    }
+  }
+  tempFiles.clear();
+}
+
 // Execute a command in a tmux pane and track its execution
-export async function executeCommand(paneId: string, command: string, rawMode?: boolean, noEnter?: boolean): Promise<string> {
+export async function executeCommand(paneId: string, command: string, rawMode?: boolean, noEnter?: boolean, stdin?: string): Promise<string> {
   // Generate unique ID for this command execution
   const commandId = uuidv4();
 
+  // If stdin is provided, write to temp file and use input redirection
+  let stdinFilePath: string | undefined;
+  let effectiveCommand = command;
+  if (stdin) {
+    stdinFilePath = join(tmpdir(), `tmux-mcp-stdin-${commandId}.txt`);
+    writeFileSync(stdinFilePath, stdin, 'utf-8');
+    tempFiles.add(stdinFilePath);
+    effectiveCommand = `${command} < '${stdinFilePath}'`;
+  }
+
   let fullCommand: string;
   if (rawMode || noEnter) {
-    fullCommand = command;
+    fullCommand = effectiveCommand;
   } else {
     const endMarkerText = getEndMarkerText();
-    fullCommand = `echo "${startMarkerText}"; ${command}; echo "${endMarkerText}"`;
+    fullCommand = `echo "${startMarkerText}"; ${effectiveCommand}; echo "${endMarkerText}"`;
   }
 
   // Store command in tracking map
   activeCommands.set(commandId, {
     id: commandId,
     paneId,
-    command,
+    command: effectiveCommand,
     status: 'pending',
     startTime: new Date(),
     rawMode: rawMode || noEnter
@@ -265,13 +326,9 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
   // Send the command to the tmux pane
   if (noEnter) {
     // Check if this is a special key (e.g., Up, Down, Left, Right, Escape, Tab, etc.)
-    // Special keys in tmux are typically capitalized or have special names
-    const specialKeys = ['Up', 'Down', 'Left', 'Right', 'Escape', 'Tab', 'Enter', 'Space',
-      'BSpace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
-      'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
-
-    if (specialKeys.includes(fullCommand)) {
-      // Send special key as-is
+    // Also handles tmux modifier patterns: C-c (Ctrl+C), M-x (Alt+X), etc.
+    if (isSpecialKey(fullCommand)) {
+      // Send special key as-is (no quotes, so tmux interprets the key name)
       await executeTmux(`send-keys -t '${paneId}' ${fullCommand}`);
     } else {
       // For regular text, send each character individually to ensure proper processing
@@ -282,6 +339,11 @@ export async function executeCommand(paneId: string, command: string, rawMode?: 
     }
   } else {
     await executeTmux(`send-keys -t '${paneId}' '${fullCommand.replace(/'/g, "'\\''")}' Enter`);
+  }
+
+  // Schedule temp file cleanup after sending the command
+  if (stdinFilePath) {
+    scheduleTempFileCleanup(stdinFilePath);
   }
 
   return commandId;
